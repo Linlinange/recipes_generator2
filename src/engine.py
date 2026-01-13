@@ -106,9 +106,25 @@ class ReplacementEngine:
         
         return result
     
-    def _apply_extra(self, content: str, combo: Dict, info: Dict,
-                     explain_log: Optional[list]) -> str:
-        """额外规则替换"""
+    def _apply_extra(self, content: str, combo: Dict[str, str], info: Dict[str, Tuple],
+                    explain_log: Optional[list] = None) -> str:
+        """
+        应用额外替换规则（extra字段）
+        
+        匹配优先级（从高到低）：
+        1. 完整值匹配（如 "minecraft:bamboo"）
+        2. 纯名称匹配（如 "bamboo"）
+        3. 通配符匹配（*）
+        
+        Args:
+            content: 待替换的文本内容
+            combo: 当前组合字典
+            info: 命名空间解析信息
+            explain_log: 解释日志列表
+            
+        Returns:
+            应用替换后的内容
+        """
         result = content
         
         for rule in self.config.get_active_rules():
@@ -116,21 +132,34 @@ class ReplacementEngine:
                 continue
             
             r_type = rule["type"]
-            name = info[r_type][0]
+            info_tuple = info[r_type]
+            name = info_tuple[0]              # 纯名称
+            namespace = info_tuple[1]         # 完整命名空间
+            full_value = f"{namespace}{name}"  # 完整值
             extra = rule.get("extra", {})
             
-            # 特定值替换
-            if name in extra:
-                for old, new in extra[name].items():
-                    if old in result and explain_log is not None:
-                        explain_log.append(f"  → 特定替换 [{name}]: {old} => {new}")
-                    result = result.replace(old, new)
-            
-            # 通配符替换
+            # === 优先级1：通配符（最低，最先执行）===
             if "*" in extra:
                 for old, new in extra["*"].items():
-                    if old in result and explain_log is not None:
-                        explain_log.append(f"  → 通配符替换 [*]: {old} => {new}")
-                    result = result.replace(old, new)
+                    if old in result:
+                        if explain_log is not None:
+                            explain_log.append(f"  → 通配符替换 [*]: {old} => {new}")
+                        result = result.replace(old, new)
+            
+            # === 优先级2：纯名称匹配（中等）===
+            if name in extra:
+                for old, new in extra[name].items():
+                    if old in result:
+                        if explain_log is not None:
+                            explain_log.append(f"  → 纯名称匹配 [{name}]: {old} => {new}")
+                        result = result.replace(old, new)
+            
+            # === 优先级3：完整值匹配（最高，最后执行）===
+            if full_value in extra:
+                for old, new in extra[full_value].items():
+                    if old in result:
+                        if explain_log is not None:
+                            explain_log.append(f"  → 完整值匹配 [{full_value}]: {old} => {new}")
+                        result = result.replace(old, new)
         
         return result
