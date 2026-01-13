@@ -1,0 +1,104 @@
+{
+  "output_dir": "./output",
+  "template_dir": "./templates",
+  "default_namespace": "minecraft:",
+  "explain_mode": false,
+  "replacements": [
+    {
+      "type": "tree",
+      "values": [
+        "minecraft:acacia",
+        "minecraft:bamboo",
+        "minecraft:birch",
+        "minecraft:cherry",
+        "minecraft:dark_oak",
+        "minecraft:jungle",
+        "minecraft:mangrove",
+        "minecraft:oak",
+        "minecraft:spruce"
+      ],
+      "extra": {
+        "*": {
+          "direct_minecraft": "direct"
+        },
+        "deeperdarker:bloom": {
+          "_log": "_stems"
+        },
+        "bamboo": {
+          "_log": "_block",
+          "_boat": "_raft"
+      },
+      "warped": {
+          "_log": "_stem",
+      "_wood": "_hyphae"
+        },
+        "crimson": {
+          "_log": "_stem",
+          "_wood": "_hyphae"
+        }
+      },
+      "enabled": true,
+      "description": "原版木材"
+    },
+    {
+      "type": "tree",
+      "values": [
+        "biomesoplenty:fir", 
+        "biomesoplenty:pine", 
+        "biomesoplenty:maple", 
+        "biomesoplenty:redwood", 
+        "biomesoplenty:mahogany", 
+        "biomesoplenty:jacaranda", 
+        "biomesoplenty:palm", 
+        "biomesoplenty:willow", 
+        "biomesoplenty:dead", 
+        "biomesoplenty:magic", 
+        "biomesoplenty:umbran", 
+        "biomesoplenty:hellbark", 
+        "biomesoplenty:empyreal", 
+        "deeperdarker:echo", 
+        "deeperdarker:bloom"
+      ],
+      "extra": {
+        "*": {
+          "direct_minecraft": "direct"
+        },
+        "deeperdarker:bloom": {
+          "_log": "_stems"
+        },
+        "bamboo": {
+          "_log": "_block",
+          "_boat": "_raft"
+      },
+      "warped": {
+          "_log": "_stem",
+      "_wood": "_hyphae"
+        },
+        "crimson": {
+          "_log": "_stem",
+          "_wood": "_hyphae"
+        }
+      },
+      "enabled": false,
+      "description": "模组木材"
+    },
+    {
+      "type": "cobblestone",
+      "values": [
+        "cobblestone",
+        "blackstone",
+        "cobbled_deepslate"
+      ],
+      "extra": {
+        "*": {
+          "direct_minecraft": "direct"
+        }
+      },
+      "enabled": false,
+      "description": "生成圆石相关的配方"
+    }
+  ],
+  "template_files": [
+    "{tree}.json"
+  ]
+}

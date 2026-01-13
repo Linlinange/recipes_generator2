@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "#X#",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "{modid}{tree}_planks"
+    },
+    "X": {
+      "tag": "c:wooden_chests"
+    }
+  },
+  "result": {
+    "item": "{modid}{tree}_chest_boat"
+  }
+}
