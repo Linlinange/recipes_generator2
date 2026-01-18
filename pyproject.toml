@@ -1,9 +1,10 @@
 [project]
 name = "recipe_generator2"
 version = "2.1.0"
-requires-python = ">=3.6"
+requires-python = ">=3.7"
 dependencies = ["pydantic"]
 
 [project.optional-dependencies]
 tui = ["textual"]
+gui = ["streamlit"]
 dev = ["pytest", "black", "ruff"]

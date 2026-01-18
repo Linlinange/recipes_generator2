@@ -1,34 +1,33 @@
-#!/usr/bin/env python3
-"""
-主入口：CLI 参数解析 + 启动生成器
-"""
-
-from src.generator import RecipeGenerator
+# main.py
+from src import RecipeGenerator
+from src.interfaces.gui import run_gui
 import argparse
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Minecraft 配方批量生成器 - OO 重构版",
-        epilog="示例: python main.py --dry-run --explain"
+        description="MC Recipe Generator - 多界面支持",
+        epilog="示例: python main.py --ui tui 或 python main.py --ui gui"
     )
     
     parser.add_argument(
-        "--dry-run", 
-        action="store_true", 
-        help="预览模式：不写入文件"
+        "--ui", 
+        choices=["cli", "gui"], 
+        default="cli", 
+        help="界面模式: cli(命令行) 或 gui(图形界面)"
     )
     
-    parser.add_argument(
-        "--explain", 
-        action="store_true", 
-        help="解释模式：显示详细替换过程"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="预览模式")
+    parser.add_argument("--explain", action="store_true", help="解释模式")
     
     args = parser.parse_args()
     
-    # 创建并运行生成器
-    generator = RecipeGenerator("config.json")
-    generator.run(dry_run=args.dry_run, explain_mode=args.explain)
+    if args.ui == "gui":
+        # 启动 Streamlit GUI
+        run_gui()
+    else:
+        # 启动 CLI 模式
+        generator = RecipeGenerator("config.json")
+        generator.run(dry_run=args.dry_run, explain_mode=args.explain)
 
 if __name__ == "__main__":
     main()
