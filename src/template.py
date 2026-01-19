@@ -12,20 +12,20 @@ class Template:
     # 静态常量：占位符正则和系统保留词
     PLACEHOLDER_PATTERN = re.compile(r"\{([a-zA-Z0-9_]+)\}")
     SYSTEM_KEYS = {"modid", "modid_safe"}
-    
+
     def __init__(self, path: Path):
         self.path = path
         self._content = self._load()
-        self.placeholders = self._scan()
+        self.placeholders = self._scan()  # ✅ 只保留这一个
+    
+    def _scan(self) -> List[str]:
+        """扫描模板内容中的占位符"""
+        all_matches = self.PLACEHOLDER_PATTERN.findall(self._content)
+        return list(dict.fromkeys([p for p in all_matches if p not in self.SYSTEM_KEYS]))
     
     def _load(self) -> str:
         """读取模板文件内容"""
         return self.path.read_text(encoding="utf-8")
-    
-    def _scan(self) -> Set[str]:
-        """扫描动态占位符（排除系统占位符）"""
-        all_matches = self.PLACEHOLDER_PATTERN.findall(self._content)
-        return set(all_matches) - self.SYSTEM_KEYS
     
     @property
     def content(self) -> str:

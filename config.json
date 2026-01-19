@@ -107,6 +107,6 @@
     }
   ],
   "template_files": [
-    "{modid}{tree}_door.json"
+    "{tree}.json"
   ]
 }
