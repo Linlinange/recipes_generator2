@@ -130,7 +130,7 @@ def main():
         page.title = "MC Recipe Generator"
         page.window_width = 800
         page.window_height = 600
-        page.window_resizable = False
+        page.window_resizable = True
         
         app = RecipeGeneratorApp()
         ui = app.build(page)
