@@ -1,11 +1,13 @@
+#!/usr/bin/env python3
 
 from pathlib import Path
 import sys
 import flet as ft
+import threading
 
-# 添加项目根目录到sys.path
 sys.path.append(str(Path(__file__).parent))
 
+# 页面导入
 from src.interfaces.base_router import BaseRouter
 from src.interfaces.home_page import HomePage
 from src.interfaces.generator_page import GeneratorPage
@@ -16,30 +18,36 @@ from src.interfaces.settings_page import SettingsPage
 from src.controllers.home_controller import HomeController
 from src.controllers.generator_controller import GeneratorController
 from src.controllers.localizer_controller import LocalizerController
-from src.controllers.settings_controller import SettingsController
+
+# 服务导入（重要）
+from src.service.settings_service import SettingsService
 
 # ============================================================================
 # 主入口
 # ============================================================================
 
 def main(page: ft.Page):
-    """主入口 - 控制器模式"""
+    """主入口"""
     page.title = "MC Recipe Generator"
     page.window_width = 900
     page.window_height = 700
     
-    # 1. 创建路由
+    # 创建共享的SettingsService（关键）
+    settings_service = SettingsService()
+    settings_service.load_config()  # 初始加载
+    
+    # 创建路由管理器
     router = BaseRouter(page)
     
-    # 2. 创建页面实例
+    # 创建页面
     pages = {
         "home": HomePage(router, page),
         "generator": GeneratorPage(None, page),
         "localizer": LocalizerPage(None, page),
-        "settings": SettingsPage(router, page),
+        "settings": SettingsPage(router, page, settings_service),  # 注入Service
     }
     
-    # 3. 注册路由和构建内容
+    # 注册路由
     route_info = {
         "home": ("首页", ft.icons.HOME),
         "generator": ("生成器", ft.icons.BUILD),
@@ -51,16 +59,37 @@ def main(page: ft.Page):
         content = page_obj.build()
         router.add_route(name, route_info[name][0], route_info[name][1], lambda c=content: c)
     
-    # 4. 创建并初始化控制器（关键！）
+    # 初始化其他页面的控制器
     print("🔌 初始化控制器...")
     controllers = {
         "home": HomeController(router, pages["home"]),
         "generator": GeneratorController(pages["generator"]),
         "localizer": LocalizerController(pages["localizer"]),
-        "settings": SettingsController(pages["settings"]),
+        # settings不需要Controller
     }
     
-    # 5. 显示首页
+    # 手动绑定SettingsPage事件（极简）
+    print("🔧 绑定SettingsPage事件...")
+    settings_page = pages["settings"]
+    
+    # 一个按钮一个lambda，直接调用Page的Service方法
+    settings_page.register_load_config_event(lambda e: settings_page.load_config())
+    settings_page.register_refresh_event(lambda e: settings_page.scan_templates())
+    settings_page.register_save_event(lambda e: settings_page.save_config())
+    
+    # 延迟刷新（避免频繁触发）
+    def delayed_refresh(e):
+        def run():
+            import time
+            time.sleep(1.0)
+            settings_page.scan_templates()
+        threading.Thread(target=run, daemon=True).start()
+    
+    settings_page.register_template_dir_change(lambda e: delayed_refresh(e))
+    
+    print("✅ 事件绑定完成")
+    
+    # 显示首页
     router.go("home")
 
 if __name__ == "__main__":
