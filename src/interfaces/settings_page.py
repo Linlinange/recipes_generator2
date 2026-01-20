@@ -1,112 +1,80 @@
 
 import flet as ft
 from pathlib import Path
-import json
-from typing import Callable, Optional
+from typing import Optional, List, Dict, Any
 from src.interfaces.base_page import BasePage
-from src.model.config import Config, ReplacementRule
+from src.model.config import Config
 
 class SettingsPage(BasePage):
-    """设置页 - 可视化编辑config.json"""
+    """
+    设置页 - 纯UI
+    所有业务逻辑由 SettingsController 处理
+    """
     
     def __init__(self, router, page: ft.Page):
         super().__init__(router, page)
         self.config: Optional[Config] = None
-    
-    def load_config(self) -> Config:
-        """从文件加载配置为Config实例"""
-        try:
-            config_path = Path("config.json")
-            if config_path.exists():
-                raw_data = json.loads(config_path.read_text(encoding='utf-8'))
-                return Config(raw_data)
-            else:
-                return self.get_default_config()
-        except Exception as e:
-            print(f"加载配置失败: {e}")
-            return self.get_default_config()
-    
-    def get_default_config(self) -> Config:
-        """返回默认Config实例"""
-        return Config({
-            "output_dir": "./output",
-            "template_dir": "./templates",
-            "default_namespace": "minecraft:",
-            "template_files": [],
-            "replacements": []
-        })
+        
+        # UI状态（仅用于展示）
+        self._template_checkboxes: Dict[str, ft.Checkbox] = {}
+        self._selected_count_text: ft.Text = ft.Text("已选择: 0 个模板", size=14)
+        self._status_text: ft.Text = ft.Text("", size=12, color=ft.colors.ORANGE)
+        self._refresh_btn: Optional[ft.ElevatedButton] = None
     
     def build(self) -> ft.Control:
-        """构建设置表单"""
-        self.config = self.load_config()
+        """构建页面UI"""
+        self.config = self.get_default_config()
         
-        # 创建表单组件
+        # 基础设置区域（禁用状态，等待Controller加载数据）
         output_dir_field = self.add_component(
             "output_dir_field",
-            ft.TextField(
-                value=self.config.output_dir,  # 使用Config的属性
-                label="输出目录",
-                expand=True,
-                on_change=lambda e: self._on_output_dir_change(e)
-            )
+            ft.TextField(label="输出目录", expand=True, disabled=True)
         )
         
         template_dir_field = self.add_component(
             "template_dir_field",
-            ft.TextField(
-                value=self.config.template_dir,  # 使用Config的属性
-                label="模板目录",
-                expand=True,
-                on_change=lambda e: self._on_template_dir_change(e)
-            )
+            ft.TextField(label="模板目录", expand=True, disabled=True)
         )
         
         default_ns_field = self.add_component(
             "default_ns_field",
-            ft.TextField(
-                value=self.config.default_namespace,  # 使用Config的属性
-                label="默认命名空间",
-                expand=True,
-                on_change=lambda e: self._on_namespace_change(e)
-            )
+            ft.TextField(label="默认命名空间", expand=True, disabled=True)
         )
         
-        # 模板文件列表（可编辑）
-        template_files_list = self.add_component(
-            "template_files_list",
+        # 模板管理区域
+        self._status_text.value = "等待加载配置..."
+        
+        template_list_view = self.add_component(
+            "template_list_view",
             ft.ListView(
                 spacing=5,
                 padding=10,
                 auto_scroll=True,
-                height=200,
+                height=300,
             )
         )
         
-        # 加载模板文件
-        self._refresh_template_files()
-        
-        # 模板操作按钮
-        add_template_btn = self.add_component(
-            "add_template_btn",
-            ft.ElevatedButton("添加模板文件", icon=ft.icons.ADD, on_click=lambda e: self._add_template_file())
+        # 操作按钮行
+        self._refresh_btn = self.add_component(
+            "refresh_btn", 
+            ft.ElevatedButton(
+                "🔄 刷新模板列表",
+                icon=ft.icons.REFRESH,
+                disabled=True  # 初始禁用
+            )
         )
         
-        remove_template_btn = self.add_component(
-            "remove_template_btn",
-            ft.ElevatedButton("移除选中", icon=ft.icons.REMOVE, on_click=lambda e: self._remove_selected_template())
+        # 统计信息
+        self._selected_count_text = self.add_component(
+            "selected_count_text",
+            self._selected_count_text
         )
         
         # 替换规则列表
-        rules_list = self.add_component(
-            "rules_list",
-            ft.ListView(
-                spacing=5,
-                padding=10,
-                height=200,
-            )
+        rules_list_view = self.add_component(
+            "rules_list_view",
+            ft.ListView(spacing=5, padding=10, height=200)
         )
-        
-        self._refresh_rules_list()
         
         # 保存按钮
         save_btn = self.add_component(
@@ -114,12 +82,13 @@ class SettingsPage(BasePage):
             ft.ElevatedButton(
                 "💾 保存配置",
                 expand=True,
-                bgcolor=ft.colors.GREEN,
+                bgcolor=ft.colors.BLUE,
                 color="white",
+                disabled=True
             )
         )
         
-        # 布局
+        # 布局组装
         return ft.Container(
             content=ft.Column([
                 ft.Text("⚙️ 配置文件设置", size=24, weight=ft.FontWeight.BOLD),
@@ -131,14 +100,18 @@ class SettingsPage(BasePage):
                 
                 ft.Divider(),
                 
-                ft.Text("模板文件", size=18, weight=ft.FontWeight.BOLD),
-                template_files_list,
-                ft.Row([add_template_btn, remove_template_btn], spacing=10),
+                ft.Text("模板文件管理", size=18, weight=ft.FontWeight.BOLD),
+                ft.Row([
+                    self._refresh_btn,
+                    self.get_component("selected_count_text")
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                self._status_text,
+                template_list_view,
                 
                 ft.Divider(),
                 
                 ft.Text("替换规则", size=18, weight=ft.FontWeight.BOLD),
-                rules_list,
+                rules_list_view,
                 
                 ft.Divider(),
                 
@@ -147,171 +120,242 @@ class SettingsPage(BasePage):
             padding=ft.padding.all(20),
         )
     
-    # ==================== 事件处理 ====================
+    # ==================== Controller 调用的接口 ====================
     
-    def _on_output_dir_change(self, e):
-        """输出目录变更"""
-        if self.config:
-            self.config.output_dir = e.control.value
-            print(f"输出目录改为: {self.config.output_dir}")
-    
-    def _on_template_dir_change(self, e):
-        """模板目录变更"""
-        if self.config:
-            self.config.template_dir = e.control.value
-            print(f"模板目录改为: {self.config.template_dir}")
-            # 自动刷新模板列表
-            self._refresh_template_files()
-    
-    def _on_namespace_change(self, e):
-        """命名空间变更"""
-        if self.config:
-            self.config.default_namespace = e.control.value
-            print(f"命名空间改为: {self.config.default_namespace}")
-    
-    def _refresh_template_files(self):
-        """刷新模板文件列表"""
-        list_view = self.get_component("template_files_list")
-        if not list_view or not self.config:
-            return
+    def load_config_ui(self, config: Config):
+        """
+        加载配置并更新UI（Controller调用）
+        参数:
+            config: 已加载的Config对象
+        """
+        self.config = config
         
-        list_view.controls.clear()
+        # 更新基础字段
+        self.get_component("output_dir_field").value = config.output_dir
+        self.get_component("output_dir_field").disabled = False
         
-        # 从目录扫描模板文件
-        template_dir = Path(self.config.template_dir)
-        if template_dir.exists():
-            # 显示已配置的模板文件
-            for file in self.config.template_files:
-                list_view.controls.append(
-                    ft.ListTile(
-                        title=ft.Text(file),
-                        leading=ft.Icon(ft.icons.DESCRIPTION),
-                        selected=False,
-                    )
-                )
-            
-            # 显示目录中所有模板（灰色，未添加的）
-            existing_files = set(self.config.template_files)
-            for file in sorted(template_dir.glob("*.json")):
-                if file.name not in existing_files:
-                    list_view.controls.append(
-                        ft.ListTile(
-                            title=ft.Text(file.name, color=ft.colors.GREY_400),
-                            leading=ft.Icon(ft.icons.DESCRIPTION, color=ft.colors.GREY_400),
-                            on_click=lambda e, f=file.name: self._quick_add_template(f),
-                        )
-                    )
+        self.get_component("template_dir_field").value = config.template_dir
+        self.get_component("template_dir_field").disabled = False
+        
+        self.get_component("default_ns_field").value = config.default_namespace
+        self.get_component("default_ns_field").disabled = False
+        
+        # 启用按钮
+        self._refresh_btn.disabled = False
+        self.get_component("save_btn").disabled = False
         
         self.page.update()
     
-    def _quick_add_template(self, filename: str):
-        """快速添加模板文件"""
-        if self.config and filename not in self.config.template_files:
-            self.config.template_files.append(filename)
-            self._refresh_template_files()
-            print(f"✅ 快速添加模板: {filename}")
-    
-    def _add_template_file(self):
-        """手动添加模板文件（弹出对话框）"""
-        # 这里可以弹出文件选择对话框
-        print("🚧 文件选择对话框待实现")
-        # TODO: 使用ft.FilePicker
-    
-    def _remove_selected_template(self):
-        """移除选中的模板文件"""
-        # TODO: 实现多选删除
-        print("🚧 多选删除待实现")
-    
-    def _refresh_rules_list(self):
-        """刷新替换规则列表"""
-        list_view = self.get_component("rules_list")
-        if not list_view or not self.config:
+    def update_template_list(self, available_templates: List[Path], status_message: str = ""):
+        """
+        更新模板列表（Controller调用）
+        参数:
+            available_templates: 目录中扫描到的所有模板文件路径
+            status_message: 状态提示信息
+        """
+        list_view = self.get_component("template_list_view")
+        list_view.controls.clear()
+        self._template_checkboxes.clear()
+        
+        if not self.config:
             return
         
-        list_view.controls.clear()
+        # 构建复选框列表
+        for template_path in sorted(available_templates):
+            filename = template_path.name
+            
+            # 判断该模板是否已在配置中（初始选中状态）
+            is_checked = filename in self.config.template_files
+            
+            # 创建复选框
+            checkbox = ft.Checkbox(
+                value=is_checked,
+                label=filename,
+                tristate=False,
+                on_change=lambda e, f=filename: self._on_template_checkbox_change(f, e.control.value)
+            )
+            self._template_checkboxes[filename] = checkbox
+            
+            # 创建ListTile（整行可点击）
+            list_tile = ft.ListTile(
+                leading=checkbox,
+                title=ft.Text(filename, size=14),
+                selected=is_checked,
+                on_click=lambda e, f=filename: self._on_template_tile_click(f),
+            )
+            list_view.controls.append(list_tile)
+        
+        # 更新状态文本
+        self._status_text.value = status_message
+        self._status_text.color = ft.colors.GREEN if "成功" in status_message else ft.colors.ORANGE
+        
+        # 更新选中计数
+        self._update_selected_count()
+        
+        self.page.update()
+    
+    def update_rules_list(self):
+        """
+        更新替换规则列表（Controller调用）
+        """
+        if not self.config:
+            return
+        
+        rules_list = self.get_component("rules_list_view")
+        rules_list.controls.clear()
         
         if not self.config.rules:
-            list_view.controls.append(ft.Text("暂无替换规则", color=ft.colors.GREY, size=14))
+            rules_list.controls.append(ft.Text("暂无替换规则", color=ft.colors.GREY, size=14))
             return
         
         for i, rule in enumerate(self.config.rules):
-            # 使用ReplacementRule的类型提示
-            rule_type = rule.type
-            values_count = len(rule.values)
-            
-            list_view.controls.append(
-                ft.ListTile(
-                    title=ft.Text(f"规则 {i+1}: {rule_type}"),
-                    subtitle=ft.Text(f"{values_count} 个值"),
-                    leading=ft.Icon(ft.icons.LIST_ALT),
-                    trailing=ft.IconButton(ft.icons.EDIT, on_click=lambda e, idx=i: self._edit_rule(idx)),
-                )
-            )
+            rules_list.controls.append(ft.ListTile(
+                title=ft.Text(f"规则 {i+1}: {rule.type}"),
+                subtitle=ft.Text(f"{len(rule.values)} 个值 • {rule.description or '无描述'}"),
+                leading=ft.Icon(ft.icons.LIST_ALT),
+                trailing=ft.IconButton(
+                    ft.icons.EDIT,
+                    tooltip="编辑规则（开发中）",
+                    on_click=lambda e, idx=i: self._show_placeholder("编辑规则功能开发中")
+                ),
+            ))
         
         self.page.update()
     
-    def _edit_rule(self, index: int):
-        """编辑规则（弹出对话框）"""
-        print(f"编辑规则 {index}")
-        # TODO: 实现规则编辑对话框
+    def show_status_message(self, message: str, is_error: bool = False):
+        """
+        显示状态消息（Controller调用）
+        参数:
+            message: 消息内容
+            is_error: True=红色错误，False=橙色提示
+        """
+        self._status_text.value = message
+        self._status_text.color = ft.colors.RED if is_error else ft.colors.ORANGE
+        self._status_text.update()
     
-    # ==================== 事件注册方法 ====================
-    
-    def register_save_event(self, handler: Callable):
-        """注册保存按钮点击事件"""
-        self.register_event("save_btn", "click", handler)
-    
-    def register_template_dir_change(self, handler: Callable):
-        """注册模板目录变更事件"""
-        self.register_event("template_dir_field", "change", handler)
-    
-    def register_output_dir_change(self, handler: Callable):
-        """注册输出目录变更事件"""
-        self.register_event("output_dir_field", "change", handler)
-    
-    def register_default_ns_change(self, handler: Callable):
-        """注册命名空间变更事件"""
-        self.register_event("default_ns_field", "change", handler)
-    
-    def register_add_template_event(self, handler: Callable):
-        """注册添加模板事件"""
-        self.register_event("add_template_btn", "click", handler)
-    
-    def register_remove_template_event(self, handler: Callable):
-        """注册移除模板事件"""
-        self.register_event("remove_template_btn", "click", handler)
-    
-    def save_config(self) -> bool:
-        """保存配置到文件"""
-        if not self.config:
-            return False
+    def show_save_success(self):
+        """显示保存成功动画（Controller调用）"""
+        save_btn = self.get_component("save_btn")
+        if not save_btn:
+            return
         
-        try:
-            config_path = Path("config.json")
-            # Config类可以序列化回字典
-            config_dict = {
-                "output_dir": self.config.output_dir,
-                "template_dir": self.config.template_dir,
-                "default_namespace": self.config.default_namespace,
-                "template_files": self.config.template_files,
-                "replacements": [
-                    {
-                        "type": rule.type,
-                        "values": rule.values,
-                        "extra": rule.extra,
-                        "enabled": rule.enabled,
-                        "description": rule.description,
-                    }
-                    for rule in self.config.rules
-                ]
-            }
-            
-            config_path.write_text(
-                json.dumps(config_dict, indent=2, ensure_ascii=False),
-                encoding='utf-8'
-            )
-            return True
-            
-        except Exception as e:
-            print(f"保存配置失败: {e}")
-            return False
+        # 保存原始样式
+        original_style = {
+            "text": save_btn.text,
+            "bgcolor": save_btn.bgcolor,
+            "color": save_btn.color
+        }
+        
+        # 更新为成功样式
+        save_btn.text = "✅ 保存成功"
+        save_btn.bgcolor = ft.colors.GREEN
+        save_btn.update()
+        
+        # 3秒后恢复
+        def restore():
+            save_btn.text = original_style["text"]
+            save_btn.bgcolor = original_style["bgcolor"]
+            save_btn.update()
+        
+        self.page.run_task(restore, delay=3)
+    
+    def set_refresh_button_loading(self, loading: bool):
+        """
+        设置刷新按钮的加载状态（Controller调用）
+        参数:
+            loading: True=显示加载中，False=恢复
+        """
+        if loading:
+            self._refresh_btn.text = "⏳ 扫描中..."
+            self._refresh_btn.disabled = True
+        else:
+            self._refresh_btn.text = "🔄 刷新模板列表"
+            self._refresh_btn.disabled = False
+        self._refresh_btn.update()
+    
+    # ==================== 内部UI交互 ====================
+    
+    def _on_template_tile_click(self, filename: str):
+        """
+        模板项点击事件 - 转发给Controller处理
+        """
+        # 复选框状态切换已在on_change中处理，这里保留扩展性
+        controller = getattr(self.page, '_settings_controller', None)
+        if controller:
+            controller.handle_template_toggle(filename)
+    
+    def _on_template_checkbox_change(self, filename: str, is_checked: bool):
+        """
+        复选框状态变更事件 - 转发给Controller处理
+        """
+        controller = getattr(self.page, '_settings_controller', None)
+        if controller:
+            controller.handle_template_checkbox_change(filename, is_checked)
+    
+    def _update_selected_count(self):
+        """更新选中数量显示"""
+        if not self.config:
+            count = 0
+        else:
+            count = len(self.config.template_files)
+        
+        self._selected_count_text.value = f"已选择: {count} 个模板"
+        
+        # 根据数量变色警示
+        if count == 0:
+            self._selected_count_text.color = ft.colors.RED
+        elif count > 20:
+            self._selected_count_text.color = ft.colors.BLUE
+        else:
+            self._selected_count_text.color = ft.colors.GREY_600
+        
+        self._selected_count_text.update()
+    
+    def _show_placeholder(self, message: str):
+        """占位提示"""
+        print(f"🚧 {message}")
+    
+    # ==================== 核心数据接口 ====================
+    
+    def get_default_config(self) -> Config:
+        """返回默认配置（首次加载用）"""
+        return Config({
+            "output_dir": "./output",
+            "template_dir": "./templates",
+            "default_namespace": "minecraft:",
+            "template_files": [],
+            "replacements": []
+        })
+    
+    def get_config_from_ui(self) -> dict:
+        """
+        从UI收集配置数据（Controller保存时调用）
+        返回: 完整的配置字典
+        """
+        if not self.config:
+            raise ValueError("配置未加载")
+        
+        # 基础字段从UI读取（用户可能手动修改）
+        output_dir = self.get_component("output_dir_field").value
+        template_dir = self.get_component("template_dir_field").value
+        namespace = self.get_component("default_ns_field").value
+        
+        # template_files由复选框操作实时同步到self.config
+        # rules目前只读，由初始加载决定
+        
+        return {
+            "output_dir": output_dir,
+            "template_dir": template_dir,
+            "default_namespace": namespace,
+            "template_files": self.config.template_files.copy(),
+            "replacements": [
+                {
+                    "type": rule.type,
+                    "values": rule.values,
+                    "extra": rule.extra,
+                    "enabled": rule.enabled,
+                    "description": rule.description,
+                }
+                for rule in self.config.rules
+            ]
+        }
