@@ -1,59 +1,101 @@
+# src/service/recipe_service.py
+
+"""
+RecipeService - 配方生成服务（架构图中的GeneratorService）
+职责：调用多个DAO，协调生成全流程，不依赖其他Service
+"""
+
 import threading
 import json
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Callable, Union
+from typing import Dict, Any, Optional, Callable, List, Tuple
+from io import StringIO
+
+from src.model.config import Config
 from src.dao.config_dao import ConfigDAO
 from src.dao.template_loader import TemplateLoader
 from src.dao.output_writer import OutputWriter
 from src.core.engine import ReplacementEngine
 
+
 class RecipeService:
-    """增强版服务：支持异步执行、进度回调、取消操作"""
+    """单例：配方生成服务"""
     
-    def __init__(self, 
-                 config_path: str,
-                 on_progress: Optional[Callable[[str], None]] = None,
-                 on_complete: Optional[Callable[[Dict[str, Any]], None]] = None,
-                 on_error: Optional[Callable[[Exception], None]] = None):
-        # 加载核心依赖
-        self.config = ConfigDAO.load(config_path)
-        self.engine = ReplacementEngine(
-            self.config.default_namespace,
-            self.config.rules
-        )
-        self.template_loader = TemplateLoader(Path(self.config.template_dir))
-        self.output_writer = OutputWriter(Path(self.config.output_dir))
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
         
-        # 回调函数（默认为空操作）
-        self.on_progress = on_progress or (lambda msg: None)
-        self.on_complete = on_complete or (lambda stats: None)
-        self.on_error = on_error or (lambda err: None)
+        self._initialized = True
+        
+        # 持有生成所需的所有组件
+        self.config: Optional[Config] = None
+        self.engine: Optional[ReplacementEngine] = None
+        self.template_loader: Optional[TemplateLoader] = None
+        self.output_writer: Optional[OutputWriter] = None
         
         # 状态管理
         self._is_running = False
         self._cancel_requested = False
+        self._processed_count = 0
+        self._current_template_name = ""
+        self._total_templates = 0
         
-        # 进度跟踪变量
-        self._processed_count = 0  # 已处理的组合总数
-        self._current_task = None  # 当前正在处理的模板名称
-        self._processed_templates = 0  # 已处理的模板数量
-        self._total_templates = 0  # 总模板数量
-
-    # ==================== 公共API ====================
+        # 回调函数
+        self.on_progress: Optional[Callable[[str], None]] = None
+        self.on_complete: Optional[Callable[[Dict[str, Any]], None]] = None
+        self.on_error: Optional[Callable[[Exception], None]] = None
     
-    def run_async(self, dry_run: bool = False, explain_mode: bool = False):
-        """异步执行生成任务（立即返回，不阻塞UI）"""
+    # ==================== 公共API（供Page调用） ====================
+    
+    def load_config(self, config_path: str = "config.json") -> bool:
+        """
+        加载配置（调用ConfigDAO）
+        参数:
+            config_path: 配置文件路径
+        返回:
+            是否成功
+        """
+        try:
+            self.config = ConfigDAO.load(config_path)
+            self._initialize_components()
+            return True
+        except Exception as ex:
+            print(f"❌ 加载配置失败: {ex}")
+            self.config = self._get_default_config()
+            self._initialize_components()
+            return False
+    
+    def start_generation(self, dry_run: bool = False, explain_mode: bool = False) -> bool:
+        """
+        开始生成配方（核心方法）
+        参数:
+            dry_run: 预览模式
+            explain_mode: 解释模式
+        返回:
+            是否成功启动
+        """
         if self._is_running:
-            self.on_progress("⚠️ 任务已在运行中")
-            return
+            self._log("⚠️ 任务已在运行中")
+            return False
+        
+        if not self.config or not self.config.template_files:
+            self._log("❌ 未加载配置或未选择模板")
+            return False
         
         # 重置状态
         self._is_running = True
         self._cancel_requested = False
         self._processed_count = 0
-        self._current_task = None
-        self._processed_templates = 0
-        self._total_templates = 0
+        self._current_template_name = ""
+        self._total_templates = len(self.config.template_files)
         
         # 在后台线程执行
         thread = threading.Thread(
@@ -62,11 +104,13 @@ class RecipeService:
             daemon=True
         )
         thread.start()
+        
+        return True
     
-    def cancel(self):
-        """请求取消正在运行的任务"""
+    def cancel_generation(self):
+        """取消生成"""
         self._cancel_requested = True
-        self.on_progress("🛑 正在取消任务...")
+        self._log("🛑 正在取消任务...")
     
     @property
     def is_running(self) -> bool:
@@ -74,105 +118,189 @@ class RecipeService:
         return self._is_running
     
     @property
-    def processed_count(self) -> int:
-        """获取已处理的组合总数"""
-        return self._processed_count
-    
-    @property
-    def current_task(self) -> Optional[str]:
-        """获取当前正在处理的任务（模板名称）"""
-        return self._current_task
-    
-    @property
-    def status(self) -> Dict[str, Union[bool, int, str, float]]:
-        """获取完整状态信息（供UI实时显示）"""
+    def status(self) -> Dict[str, Any]:
+        """获取完整状态信息"""
         progress = 0.0
         if self._total_templates > 0:
-            progress = (self._processed_templates / self._total_templates) * 100
+            processed_templates = self._processed_count // max(total_combinations := 1, 1)
+            progress = (processed_templates / self._total_templates) * 100
         
         return {
             "is_running": self._is_running,
-            "progress": round(progress, 2),  # 进度百分比（保留2位小数）
+            "progress": round(progress, 2),
             "processed_count": self._processed_count,
-            "current_template": self._current_task or "",
-            "processed_templates": self._processed_templates,
-            "total_templates": self._total_templates
+            "current_template": self._current_template_name,
+            "total_templates": self._total_templates,
         }
-
+    
+    def set_callbacks(
+        self,
+        on_progress: Optional[Callable[[str], None]] = None,
+        on_complete: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_error: Optional[Callable[[Exception], None]] = None
+    ):
+        """设置回调函数（供Page注入）"""
+        self.on_progress = on_progress
+        self.on_complete = on_complete
+        self.on_error = on_error
+    
+    def preview_combinations(self, limit: int = 5) -> List[Tuple[str, str]]:
+        """
+        预览组合（调用多个DAO）
+        参数:
+            limit: 预览数量限制
+        返回:
+            (文件名, 内容)列表
+        """
+        if not self.config or not self.config.template_files:
+            return []
+        
+        try:
+            # 调用DAO直接加载模板
+            templates = self.template_loader.load_all(self.config.template_files[:1])
+            if not templates:
+                return []
+            
+            # 生成预览
+            previews = []
+            first_template = list(templates.values())[0]
+            combos = self.engine.generate_combinations(first_template)
+            
+            for combo in combos[:limit]:
+                # 生成文件名
+                filename = self.engine.apply(first_template.path.name, combo, None)
+                filename = filename.replace(":", "_")
+                
+                # 生成内容
+                explain_log = []  # 预览时不需要解释
+                content = self.engine.apply(first_template.content, combo, explain_log)
+                
+                # 格式化内容
+                try:
+                    data = json.loads(content)
+                    formatted = json.dumps(data, ensure_ascii=False, indent=2)
+                except:
+                    formatted = content
+                
+                previews.append((filename, formatted))
+            
+            return previews
+            
+        except Exception as ex:
+            self._log(f"预览失败: {ex}", is_error=True)
+            return []
+    
+    def get_output_directory(self) -> str:
+        """获取当前输出目录"""
+        return self.config.output_dir if self.config else "./output"
+    
     # ==================== 内部实现 ====================
     
     def _run_internal(self, dry_run: bool, explain_mode: bool):
         """内部同步执行（在后台线程）"""
         try:
-            self.on_progress("\n🚀 开始生成配方...\n")
+            self._log("\n🚀 开始生成配方...")
             
-            # 1. 加载模板
+            # 1. 调用DAO加载模板
             templates = self.template_loader.load_all(self.config.template_files)
             if not templates:
-                self.on_progress("⚠️  没有可用的模板，请检查配置。")
+                self._log("⚠️  没有可用的模板，请检查配置。")
                 return
             
-            self._total_templates = len(templates)
-            self.on_progress(f"📂 加载了 {self._total_templates} 个模板")
+            self._log(f"📂 加载了 {len(templates)} 个模板")
             
             # 2. 处理每个模板
             for filename, template in templates.items():
                 if self._cancel_requested:
-                    self.on_progress("\n🛑 任务已取消")
+                    self._log("\n🛑 任务已取消")
                     break
                 
-                self._current_task = template.path.name
+                self._current_template_name = filename
                 self._process_template(template, dry_run, explain_mode)
-                self._processed_templates += 1  # 模板处理完成，计数+1
+                self._processed_count += 1
             
-            # 3. 完成通知
+            # 3. 完成统计
             if not self._cancel_requested:
                 stats = self.output_writer.get_stats()
-                # 补充处理统计信息
-                stats["processed_templates"] = self._processed_templates
-                stats["total_combinations"] = self._processed_count
-                self.on_complete(stats)
-                self.on_progress(f"\n✅ 任务完成！共处理 {self._processed_templates}/{self._total_templates} 个模板，生成 {self._processed_count} 个组合")
+                self._log(f"\n" + "="*50)
+                self._log(f"🎯 生成完成")
+                self._log(f"   总计: {stats['total']} 个文件")
+                self._log("="*50)
+                
                 if dry_run:
-                    self.on_progress("\n⚠️  预览模式，未实际写入文件")
+                    self._log("\n⚠️  预览模式，未实际写入文件")
+                
+                if self.on_complete:
+                    self.on_complete(stats)
                 
         except Exception as e:
-            self.on_error(e)
-            self.on_progress(f"\n❌ 任务执行失败: {str(e)}")
+            self._log(f"\n❌ 错误: {e}", is_error=True)
+            if self.on_error:
+                self.on_error(e)
         finally:
             self._is_running = False
-            self._current_task = None  # 重置当前任务
+            self._current_template_name = ""
     
     def _process_template(self, template, dry_run: bool, explain_mode: bool):
         """处理单个模板"""
-        self.on_progress(f"\n📄 处理模板: {template.path.name}")
+        self._log(f"\n📄 处理模板: {template.path.name}")
         
+        # 调用Engine生成组合
         combos = self.engine.generate_combinations(template)
+        
         if not combos:
-            self.on_progress(f"   ⚠️  没有生成任何组合")
+            self._log(f"   ⚠️  没有生成任何组合")
             return
         
-        self.on_progress(f"   生成 {len(combos)} 个组合")
+        self._log(f"   生成 {len(combos)} 个组合")
         
+        # 处理每个组合
         for combo in combos:
             if self._cancel_requested:
                 break
-                
-            # 生成文件名（避免非法字符）
+            
+            # 生成文件名和内容
             filename = self.engine.apply(template.path.name, combo, None)
             filename = filename.replace(":", "_").replace("/", "_").replace("\\", "_")
             
-            # 生成内容
             explain_log = [] if explain_mode else None
             content = self.engine.apply(template.content, combo, explain_log)
             
-            # 写入文件
+            # 调用DAO写入文件
             self.output_writer.write(filename, content, dry_run)
-            self._processed_count += 1  # 组合处理完成，计数+1
-            self.on_progress(f"   📄 {'[预览] ' if dry_run else ''}{filename}")
+            self._processed_count += 1
+            self._log(f"   📄 {'[预览] ' if dry_run else ''}{filename}")
             
             # 解释模式日志
             if explain_log:
-                self.on_progress(f"\n   📝 组合详情: {json.dumps(combo, ensure_ascii=False, indent=2)}")
+                self._log(f"\n   📝 组合详情: {combo}")
                 for log in explain_log:
-                    self.on_progress(f"      {log}")
+                    self._log(f"      {log}")
+    
+    def _initialize_components(self):
+        """初始化核心组件"""
+        if not self.config:
+            return
+        
+        # 调用DAO创建组件
+        self.engine = ReplacementEngine(self.config.default_namespace, self.config.rules)
+        self.template_loader = TemplateLoader(Path(self.config.template_dir))
+        self.output_writer = OutputWriter(Path(self.config.output_dir))
+    
+    def _log(self, message: str, is_error: bool = False):
+        """日志输出（带回调）"""
+        if self.on_progress:
+            self.on_progress(message)
+        else:
+            print(message)
+    
+    def _get_default_config(self) -> Config:
+        """获取默认配置"""
+        return Config({
+            "output_dir": "./output",
+            "template_dir": "./templates",
+            "default_namespace": "minecraft:",
+            "template_files": [],
+            "replacements": []
+        })
+    

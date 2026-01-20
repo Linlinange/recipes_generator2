@@ -1,17 +1,15 @@
 """
-HomeService - 首页业务逻辑
-职责：应用元数据、统计数据
+HomeService - 占位实现
+职责：应用元数据、统计数据（功能待扩展）
 """
 
-import re
+import sys
 from pathlib import Path
 from typing import Dict, Any
-import sys
-import time
 
 
 class HomeService:
-    """单例：首页业务服务"""
+    """单例：首页服务（占位实现）"""
     
     _instance = None
     
@@ -27,47 +25,23 @@ class HomeService:
         
         self._initialized = True
         self.app_name = "MC Recipe Generator"
-        self.app_version = self._get_version()
-        self.build_time = time.time()
+        self.app_version = "1.2.0"  # 硬编码版本，从pyproject.toml读取的功能待实现
+        self.placeholder_stats = {
+            "total_generated": 0,
+            "template_count": 0,
+            "run_count": 0,
+        }
     
-    def _get_version(self) -> str:
-        """从pyproject.toml获取版本 - 无需tomllib"""
-        try:
-            project_root = Path(__file__).parent.parent.parent
-            pyproject_path = project_root / "pyproject.toml"
-            
-            if not pyproject_path.exists():
-                return "1.0.0"
-            
-            # 简单正则解析
-            content = pyproject_path.read_text(encoding="utf-8")
-            
-            # 匹配 version = "1.2.3" 或 version = '1.2.3'
-            version_match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
-            if version_match:
-                return version_match.group(1)
-            
-            # 备用：查找 [tool.poetry] 下的 version
-            poetry_match = re.search(
-                r'\[tool\.poetry\].*?version\s*=\s*["\']([^"\']+)["\']', 
-                content, 
-                re.DOTALL
-            )
-            if poetry_match:
-                return poetry_match.group(1)
-                
-        except Exception:
-            pass
-        
-        return "1.0.0"
+    # ==================== 占位方法 ====================
     
     def get_app_info(self) -> Dict[str, Any]:
-        """获取应用信息"""
+        """获取应用信息（占位）"""
         return {
             "name": self.app_name,
             "version": self.app_version,
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "flet_version": self._get_flet_version(),
+            "status": "running",
         }
     
     def _get_flet_version(self) -> str:
@@ -79,12 +53,21 @@ class HomeService:
             return "unknown"
     
     def get_recent_stats(self) -> Dict[str, int]:
-        """获取最近统计（占位）"""
-        output_dir = Path("./output")
-        template_dir = Path("./templates")
+        """获取最近统计（占位，以后从日志/文件读取）"""
+        # 尝试统计output目录文件数（简单统计）
+        try:
+            output_dir = Path("./output")
+            if output_dir.exists():
+                self.placeholder_stats["total_generated"] = len(list(output_dir.glob("*.json")))
+            
+            template_dir = Path("./templates")
+            if template_dir.exists():
+                self.placeholder_stats["template_count"] = len(list(template_dir.glob("*.json")))
+        except Exception:
+            pass
         
-        return {
-            "total_generated": len(list(output_dir.glob("*.json"))) if output_dir.exists() else 0,
-            "template_count": len(list(template_dir.glob("*.json"))) if template_dir.exists() else 0,
-            "run_count": 0,
-        }
+        return self.placeholder_stats
+    
+    def get_welcome_message(self) -> str:
+        """获取欢迎消息"""
+        return f"欢迎使用 {self.app_name} v{self.app_version}！"

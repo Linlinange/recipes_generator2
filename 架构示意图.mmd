@@ -1,0 +1,41 @@
+graph TD
+    GeneratorPage --> GeneratorService
+    SettingsPage --> SettingsService
+    LocalizerPage --> LocalizerService
+    HomePage --> HomeService
+
+    GeneratorService <--> ReplacementEngine
+    GeneratorService --> |读| TemplateLoader
+    GeneratorService --> |写| OutputWriter
+    GeneratorService --> |读| ConfigDAO
+
+    SettingsService --> |读写| ConfigDAO
+
+    LocalizerService <--> LocalizationEngine_未实现
+    LocalizerService --> |读| TemplateLoader
+    LocalizerService --> |写| OutputWriter
+    LocalizerService --> |读| ConfigDAO
+
+    HomeService
+
+    ConfigDAO --> Config
+    ConfigDAO --> file
+    OutputWriter --> file
+    TemplateLoader --> file
+    TemplateLoader --> Template
+
+    style GeneratorPage fill:#dad,stroke:#333,stroke-width:2px
+    style SettingsPage fill:#dad,stroke:#333,stroke-width:2px
+    style LocalizerPage fill:#dad,stroke:#333,stroke-width:2px
+    style HomePage fill:#dad,stroke:#333,stroke-width:2px
+
+    style GeneratorService fill:#aaf,stroke:#333,stroke-width:2px
+    style LocalizerService fill:#aaf,stroke:#333,stroke-width:2px
+    style SettingsService fill:#aaf,stroke:#333,stroke-width:2px
+    style HomeService fill:#aaf,stroke:#333,stroke-width:2px
+    
+    style ReplacementEngine fill:#ccf,stroke:#333,stroke-width:1px
+    style LocalizationEngine_未实现 fill:#ccf,stroke:#333,stroke-width:1px
+    style ConfigDAO fill:#ccf,stroke:#333,stroke-width:1px
+    style OutputWriter fill:#ccf,stroke:#333,stroke-width:1px
+    style TemplateLoader fill:#ccf,stroke:#333,stroke-width:1px
