@@ -2,7 +2,7 @@
 import threading
 import json
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, Union
 from src.dao.config_dao import ConfigDAO
 from src.dao.template_loader import TemplateLoader
 from src.dao.output_writer import OutputWriter
@@ -62,6 +62,11 @@ class RecipeService:
         """查询运行状态"""
         return self._is_running
     
+    def get_status() -> Dict[str, Union[bool, int, str]]:
+        # 返回: 包含 is_running, progress, processed_count, current_template
+        # 用途: UI实时显示生成进度
+        pass
+
     # ==================== 内部实现 ====================
     
     def _run_internal(self, dry_run: bool, explain_mode: bool):

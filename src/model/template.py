@@ -24,3 +24,4 @@ class Template:
                 seen.add(m)
                 result.append(m)
         return result
+    

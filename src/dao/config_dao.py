@@ -27,3 +27,10 @@ class ConfigDAO:
             }]
         
         return Config(raw_data)
+    
+    @staticmethod
+    def save(config: Config, path: str = "config.json") -> bool:
+        # 参数: Config对象，保存路径（默认config.json）
+        # 返回: 成功True/失败False
+        # 备注: 需处理文件写入异常、JSON序列化错误
+        pass
