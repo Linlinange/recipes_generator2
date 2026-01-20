@@ -28,6 +28,7 @@ class TemplateLoader:
         else:
             raise FileNotFoundError(f"模板不存在: {path}")
     
+    @staticmethod
     def scan_directory(directory: Path) -> List[Path]:
         # 参数: 模板目录的Path对象
         # 返回: 该目录下所有 *.json 文件的Path列表（按文件名排序）

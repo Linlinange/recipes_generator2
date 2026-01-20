@@ -58,10 +58,20 @@ class RecipeService:
         self._cancel_requested = True
         self.on_progress("🛑 正在取消任务...")
     
+    @property
     def is_running(self) -> bool:
         """查询运行状态"""
         return self._is_running
     
+    @property
+    def processed_count(self) -> int:
+        pass
+
+    @property
+    def current_task(self) -> Optional[str]:
+        pass
+
+    @property
     def get_status() -> Dict[str, Union[bool, int, str]]:
         # 返回: 包含 is_running, progress, processed_count, current_template
         # 用途: UI实时显示生成进度
