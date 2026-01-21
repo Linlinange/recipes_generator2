@@ -246,7 +246,7 @@ class SettingsPage(BasePage):
         def scan_in_background():
             templates = self.service.scan_templates()
             
-            def update_ui():
+            async def update_ui():
                 self._update_template_list(templates, f"✅ 扫描成功，找到 {len(templates)} 个模板")
                 self.set_refresh_button_loading(False)
             

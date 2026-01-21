@@ -24,9 +24,11 @@ from src.service.recipe_service import RecipeService
 def main(page: ft.Page):
     """主入口 - 事件在Page内部绑定"""
     page.title = "MC Recipe Generator"
-    page.window_width = 900
-    page.window_height = 700
-    page.window_resizable = True
+    page.window.width = 900
+    page.window.height = 700
+    page.window.resizable = True
+    page.window.min_width = 600
+    page.window.min_height = 400
     
     # 创建单例Service
     settings_service = SettingsService()
@@ -45,10 +47,10 @@ def main(page: ft.Page):
     
     # 注册路由
     route_info = {
-        "home": ("首页", ft.icons.HOME),
-        "generator": ("生成器", ft.icons.BUILD),
-        "localizer": ("本地化", ft.icons.LANGUAGE),
-        "settings": ("设置", ft.icons.SETTINGS),
+        "home": ("首页", ft.Icons.HOME),
+        "generator": ("生成器", ft.Icons.BUILD),
+        "localizer": ("本地化", ft.Icons.LANGUAGE),
+        "settings": ("设置", ft.Icons.SETTINGS),
     }
     
     for name, page_obj in pages.items():

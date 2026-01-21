@@ -138,7 +138,7 @@ class GeneratorPage(BasePage):
         log_view.controls.clear()
         
         # 启动生成
-        success = self.service.start_generation(dry_run=dry_run, explain_mode=explain_mode)
+        success = self.recipe_service.start_generation(dry_run=dry_run, explain_mode=explain_mode)
         
         if not success:
             self.log_message("❌ 启动失败，请检查配置", is_error=True)
@@ -149,7 +149,7 @@ class GeneratorPage(BasePage):
     def _handle_open_output_dir(self, e: ft.ControlEvent):
         """打开输出目录"""
         try:
-            output_dir = Path(self.service.get_output_directory())
+            output_dir = Path(self.recipe_service.get_output_directory())
             if output_dir.exists():
                 import subprocess
                 subprocess.Popen(f'explorer "{output_dir.absolute()}"')
