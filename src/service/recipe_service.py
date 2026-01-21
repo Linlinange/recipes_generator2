@@ -1,4 +1,4 @@
-# src/service/recipe_service.py
+
 
 """
 RecipeService - 配方生成服务（架构图中的GeneratorService）
@@ -315,4 +315,3 @@ class RecipeService:
             "template_files": [],
             "replacements": []
         })
-    

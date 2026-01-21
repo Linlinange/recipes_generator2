@@ -4,7 +4,6 @@ SettingsService - 配置业务服务
 """
 
 import json
-import threading
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 

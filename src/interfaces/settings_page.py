@@ -278,6 +278,7 @@ class SettingsPage(BasePage):
                 leading=checkbox,
                 title=ft.Text(filename, size=14),
                 selected=is_checked,
+                height=100,
                 on_click=lambda e, fn=filename: self._on_template_tile_click(fn)
             )
             list_view.controls.append(list_tile)
