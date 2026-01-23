@@ -3,6 +3,7 @@
     "template_dir": "./templates",
     "default_namespace": "minecraft:",
     "template_files": [
+        "material.json",
         "{modid}{tree}_door.json",
         "{tree}.json"
     ],

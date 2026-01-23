@@ -48,6 +48,7 @@ class LocalizerService:
         """内部日志方法"""
         if self._on_progress:
             self._on_progress(message)
+            print(f"{message}")
         elif is_error:
             print(f"❌ {message}")
         else:

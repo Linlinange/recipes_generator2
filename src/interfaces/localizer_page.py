@@ -1,3 +1,4 @@
+# src/interfaces/localizer_page.py
 
 import flet as ft
 from pathlib import Path
@@ -14,6 +15,8 @@ class LocalizerPage(BasePage):
     
     def __init__(self, router, page: ft.Page, localizer_service: Optional[LocalizerService] = None):
         super().__init__(router, page)
+        # 默认配置路径
+        self.default_config_path = "test_manual/config.json"
         self.localizer_service = localizer_service or LocalizerService()
         
         # 设置服务回调
@@ -29,6 +32,44 @@ class LocalizerPage(BasePage):
     
     def build(self) -> ft.Control:
         """构建完整UI界面"""
+        
+        # ===== 配置文件选择区域 =====
+        config_path_label = ft.Text(
+            "📄 配置文件路径",
+            size=16,
+            weight=ft.FontWeight.BOLD,
+            color=ft.colors.BLUE_900
+        )
+        
+        config_path_textfield = self.add_component(
+            "config_path_textfield",
+            ft.TextField(
+                label="输入配置文件路径",
+                value=self.default_config_path,  # 默认值
+                hint_text="例如: config/localization.json",
+                expand=True,
+                text_size=14,
+                dense=True,
+                suffix_icon=ft.icons.FILE_OPEN,
+                on_change=self._on_config_path_change,  # 路径变更时验证
+            )
+        )
+        
+        config_path_row = ft.Row(
+            [
+                config_path_textfield,
+                self.add_component(
+                    "browse_config_btn",
+                    ft.IconButton(
+                        icon=ft.icons.FOLDER_OPEN,
+                        tooltip="浏览配置文件",
+                        on_click=self._handle_browse_config
+                    )
+                )
+            ],
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER
+        )
         
         # ===== 顶部控制面板 =====
         load_config_btn = self.add_component(
@@ -75,7 +116,6 @@ class LocalizerPage(BasePage):
             border_radius=5,
             padding=10,
             height=300,
-            
         )
         
         # ===== 生成控制面板 =====
@@ -164,6 +204,8 @@ class LocalizerPage(BasePage):
             ft.Container(
                 content=ft.Column([
                     ft.Text("📄 批量本地化工具", size=24, weight=ft.FontWeight.BOLD),
+                    config_path_label,
+                    config_path_row,
                     load_config_btn,
                     template_dropdown,
                 ], spacing=15),
@@ -179,14 +221,59 @@ class LocalizerPage(BasePage):
     
     # ==================== 事件处理 ====================
     
+    def _on_config_path_change(self, e: ft.ControlEvent):
+        """配置文件路径变更时验证"""
+        path = e.control.value.strip()
+        if not path:
+            return
+        
+        path_obj = Path(path)
+        if not path_obj.exists():
+            e.control.error_text = "文件不存在"
+        elif not path_obj.is_file():
+            e.control.error_text = "不是有效的文件"
+        elif path_obj.suffix.lower() != '.json':
+            e.control.error_text = "必须是JSON文件"
+        else:
+            e.control.error_text = None
+        self.page.update()
+    
+    def _handle_browse_config(self, e: ft.ControlEvent):
+        """浏览配置文件（Flet 目前不支持原生文件选择器，提供说明）"""
+        self.log_message("ℹ️  提示: 请在文本框中手动输入配置文件路径", is_info=True)
+        # 未来可使用: https://pypi.org/project/flet-file-picker/
+    
     def _handle_load_config(self, e: ft.ControlEvent):
         """加载配置按钮点击"""
-        self.log_message("⏳ 正在加载配置...")
+        # 获取用户输入的路径（优先使用文本框中的）
+        config_path_textfield = self.get_component("config_path_textfield")
+        custom_path = config_path_textfield.value.strip()
+        
+        # 如果没有输入路径，使用默认值
+        if not custom_path:
+            custom_path = self.default_config_path
+            config_path_textfield.value = custom_path
+        
+        self.log_message(f"⏳ 正在加载配置: {custom_path}")
+        
+        # 验证路径
+        path_obj = Path(custom_path)
+        if not path_obj.exists():
+            self.log_message(f"❌ 配置文件不存在: {custom_path}", is_error=True)
+            return
         
         # 禁用按钮防止重复点击
         load_btn = self.get_component("load_config_btn")
         load_btn.disabled = True
         self.page.update()
+        
+        # 重新初始化服务（带新路径）
+        self.localizer_service = LocalizerService(config_path=custom_path)
+        self.localizer_service.set_callbacks(
+            on_progress=self._on_progress,
+            on_complete=self._on_complete,
+            on_error=self._on_error
+        )
         
         # 执行加载
         success = self.localizer_service.reload_config()
@@ -213,7 +300,7 @@ class LocalizerPage(BasePage):
             # 更新统计
             self._update_stats()
         else:
-            self.log_message("❌ 配置加载失败，请检查config.json和batch_items.json", is_error=True)
+            self.log_message("❌ 配置加载失败，请检查文件格式和内容", is_error=True)
         
         # 恢复按钮
         load_btn.disabled = False

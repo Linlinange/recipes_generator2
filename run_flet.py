@@ -59,17 +59,18 @@ def main(page: ft.Page):
     
     # 创建Service
     settings_service = SettingsService()
-    recipe_service = RecipeService(settings_service)
+    recipe_service = RecipeService(settings_service=settings_service)
+    localizer_service = LocalizerService()
     
     # 创建路由管理器
     router = BaseRouter(page)
     
     # 创建页面实例（直接注入Service）
     pages = {
-        "home": HomePage(router, page),                                    # 无Service
-        "generator": GeneratorPage(None, page, recipe_service),            # 注入RecipeService
-        "localizer": LocalizerPage(None, page),                            # 无Service
-        "settings": SettingsPage(router, page, settings_service),          # 注入SettingsService
+        "home": HomePage(router, page),                                    # 无 Service
+        "generator": GeneratorPage(None, page, recipe_service),            # 注入 RecipeService
+        "localizer": LocalizerPage(None, page, localizer_service),         # 注入 LocalizerService
+        "settings": SettingsPage(router, page, settings_service),          # 注入 SettingsService
     }
     
     # 注册路由
